@@ -288,6 +288,7 @@ public class Main {
 			}
 
 			archivo.close();
+			actualizarEstadoGimnasios();
 			return true;
 
 		} catch (FileNotFoundException e) {
@@ -299,7 +300,8 @@ public class Main {
 	// crea una nueva partida
 	private static void nuevaPartida() {
 		String apodo = leerTextoNoVacio("Ingrese su apodo de jugador: ");
-		jugador = new Jugador(apodo, "none");
+		jugador = new Jugador(apodo, "0");
+		actualizarEstadoGimnasios();
 		guardarPartida();
 	}
 
@@ -414,27 +416,181 @@ public class Main {
 
 	// muestra los gimnasios
 	private static void retarGimnasio() {
-		System.out.println("Gimnasios cargados:");
+		if (!hayPokemonVivoEnEquipo()) {
+			System.out.println("No tienes pokemones vivos en tu equipo para combatir.");
+			return;
+		}
+
+		System.out.println("A cual Lider deseas retar??");
 		System.out.println();
 
 		for (int i = 0; i < gimnasios.size(); i++) {
 			System.out.println((i + 1) + ") " + gimnasios.get(i).getLider() + " - Estado: "
 					+ gimnasios.get(i).getEstado());
 		}
-		
-		System.out.println("Sistema de combate de gimnasios aun no implementado.");
+
+		System.out.println((gimnasios.size() + 1) + ") Volver al menu.");
+
+		int opcion = leerEnteroEnRango("Ingrese Opcion: ", 1, gimnasios.size() + 1);
+
+		if (opcion == gimnasios.size() + 1) {
+			return;
+		}
+
+		int medallas = getCantidadMedallas();
+
+		if (opcion <= medallas) {
+			System.out.println("Ese gimnasio ya fue derrotado.");
+			return;
+		}
+
+		if (opcion > medallas + 1) {
+			System.out.println("Calmado Entrenador!!! No puedes retar a " + gimnasios.get(opcion - 1).getLider()
+					+ " sin haber derrotado a los lideres anteriores!!");
+			return;
+		}
+
+		Gimnasio gimnasio = gimnasios.get(opcion - 1);
+		reiniciarPokemonesRivales(gimnasio.getPokemones());
+		System.out.println("Desafiando a " + gimnasio.getLider() + "!!");
+
+		if (combatirEntrenador(gimnasio.getLider(), gimnasio.getPokemones())) {
+			gimnasio.setEstado("Derrotado");
+			jugador.setProgreso(String.valueOf(medallas + 1));
+			actualizarEstadoGimnasios();
+			System.out.println("Has conseguido una nueva medalla!");
+		}
 	}
 
 	// muestra el alto mando
 	private static void desafiarAltoMando() {
-		System.out.println("Miembros del Alto Mando cargados:");
-		System.out.println();
-
-		for (int i = 0; i < altoMando.size(); i++) {
-			System.out.println((i + 1) + ") " + altoMando.get(i).getNombre());
+		if (getCantidadMedallas() < 8) {
+			System.out.println("Necesitas derrotar los 8 gimnasios para desafiar al Alto Mando.");
+			return;
 		}
 
-		System.out.println("Desafio al Alto Mando aun no implementado.");
+		if (!hayPokemonVivoEnEquipo()) {
+			System.out.println("No tienes pokemones vivos en tu equipo para combatir.");
+			return;
+		}
+
+		System.out.println("Desafiando al Alto Mando!!");
+
+		for (int i = 0; i < altoMando.size(); i++) {
+			MiembroAltoMando miembro = altoMando.get(i);
+			reiniciarPokemonesRivales(miembro.getPokemones());
+			System.out.println();
+			System.out.println("Te enfrentas a " + miembro.getNombre() + "!!");
+
+			if (!combatirEntrenador(miembro.getNombre(), miembro.getPokemones())) {
+				System.out.println("Has sido derrotado en el Alto Mando...");
+				return;
+			}
+		}
+
+		System.out.println("Felicidades!! Has derrotado al Alto Mando!");
+	}
+
+	// combate contra un entrenador rival
+	private static boolean combatirEntrenador(String nombreEntrenador, ArrayList<Pokemon> pokemonesRival) {
+		int indiceRival = 0;
+		Pokemon actualJugador = seleccionarPrimerPokemonVivoEquipo();
+
+		while (indiceRival < pokemonesRival.size()) {
+			if (actualJugador == null) {
+				System.out.println("Te has quedado sin pokemones en tu equipo!");
+				System.out.println("Volviendo al menu...");
+				return false;
+			}
+
+			Pokemon actualRival = pokemonesRival.get(indiceRival);
+
+			System.out.println();
+			System.out.println(nombreEntrenador + " saca a " + actualRival.getNombre() + "!");
+			System.out.println(jugador.getApodo() + " saca a " + actualJugador.getNombre() + "!");
+			System.out.println();
+			System.out.println("Que deseas hacer?");
+			System.out.println("1) Atacar");
+			System.out.println("2) Cambiar de pokemon");
+			System.out.println("3) Rendirse");
+
+			int opcion = leerEnteroEnRango("Ingrese Opcion: ", 1, 3);
+
+			switch (opcion) {
+			case 1:
+				int resultado = batallaPokemon(actualJugador, actualRival);
+
+				if (resultado == 1) {
+					actualRival.setEstado("Debilitado");
+					indiceRival++;
+				} else {
+					actualJugador.setEstado("Debilitado");
+
+					if (!hayPokemonVivoEnEquipo()) {
+						System.out.println("Te has quedado sin pokemones en tu equipo!");
+						System.out.println("Volviendo al menu...");
+						return false;
+					}
+
+					actualJugador = elegirPokemonVivoEquipo();
+				}
+				break;
+
+			case 2:
+				actualJugador = elegirPokemonVivoEquipo();
+				break;
+
+			case 3:
+				System.out.println("Te has rendido...");
+				return false;
+			}
+		}
+
+		System.out.println("Has derrotado a " + nombreEntrenador + "!!");
+		return true;
+	}
+
+	// simula una batalla entre dos pokemones
+	private static int batallaPokemon(Pokemon pokemonJugador, Pokemon pokemonRival) {
+		int puntajeJugador = pokemonJugador.getStatsTotales();
+		int puntajeRival = pokemonRival.getStatsTotales();
+
+		System.out.println(pokemonJugador.getNombre() + " -> " + puntajeJugador + " puntos");
+		System.out.println(pokemonRival.getNombre() + " -> " + puntajeRival + " puntos");
+
+		double efectividadJugador = TablaTipos.getEfectividad(pokemonJugador.getTipo(), pokemonRival.getTipo());
+		double efectividadRival = TablaTipos.getEfectividad(pokemonRival.getTipo(), pokemonJugador.getTipo());
+
+		int nuevoPuntajeJugador = (int) Math.round(puntajeJugador * efectividadJugador);
+		int nuevoPuntajeRival = (int) Math.round(puntajeRival * efectividadRival);
+
+		if (efectividadJugador > 1.0) {
+			System.out.println(pokemonJugador.getNombre() + " es efectivo contra " + pokemonRival.getNombre() + "!");
+		} else if (efectividadJugador < 1.0) {
+			System.out.println(pokemonJugador.getNombre() + " no es efectivo contra " + pokemonRival.getNombre() + "!");
+		}
+
+		if (efectividadRival > 1.0) {
+			System.out.println(pokemonRival.getNombre() + " es efectivo contra " + pokemonJugador.getNombre() + "!");
+		} else if (efectividadRival < 1.0) {
+			System.out.println(pokemonRival.getNombre() + " no es efectivo contra " + pokemonJugador.getNombre() + "!");
+		}
+
+		if (efectividadJugador != 1.0 || efectividadRival != 1.0) {
+			System.out.println("Nuevo puntaje:");
+			System.out.println(pokemonJugador.getNombre() + " -> " + nuevoPuntajeJugador + " puntos");
+			System.out.println(pokemonRival.getNombre() + " -> " + nuevoPuntajeRival + " puntos");
+		}
+
+		if (nuevoPuntajeJugador >= nuevoPuntajeRival) {
+			System.out.println("Ha ganado " + pokemonJugador.getNombre() + "! " + pokemonRival.getNombre()
+					+ " ha sido derrotado...");
+			return 1;
+		}
+
+		System.out.println("Ha ganado " + pokemonRival.getNombre() + "! " + pokemonJugador.getNombre()
+				+ " ha sido derrotado...");
+		return -1;
 	}
 
 	// cura los pokemones
@@ -511,6 +667,88 @@ public class Main {
 		}
 
 		return new Pokemon(pokemonesZona.get(pokemonesZona.size() - 1));
+	}
+
+	// obtiene cuantas medallas tiene el jugador
+	private static int getCantidadMedallas() {
+		if (jugador == null) {
+			return 0;
+		}
+
+		String progreso = jugador.getProgreso();
+
+		if (progreso == null || progreso.equalsIgnoreCase("none") || progreso.equals("")) {
+			return 0;
+		}
+
+		try {
+			return Integer.parseInt(progreso);
+		} catch (NumberFormatException e) {
+			return 0;
+		}
+	}
+
+	// actualiza el estado de los gimnasios segun las medallas
+	private static void actualizarEstadoGimnasios() {
+		int medallas = getCantidadMedallas();
+
+		for (int i = 0; i < gimnasios.size(); i++) {
+			if (i < medallas) {
+				gimnasios.get(i).setEstado("Derrotado");
+			} else {
+				gimnasios.get(i).setEstado("Sin derrotar");
+			}
+		}
+	}
+
+	// revisa si hay pokemones vivos en el equipo
+	private static boolean hayPokemonVivoEnEquipo() {
+		for (int i = 0; i < jugador.getCantidadEquipo(); i++) {
+			if (jugador.getPokemones().get(i).estaVivo()) {
+				return true;
+			}
+		}
+
+		return false;
+	}
+
+	// selecciona el primer pokemon vivo del equipo
+	private static Pokemon seleccionarPrimerPokemonVivoEquipo() {
+		for (int i = 0; i < jugador.getCantidadEquipo(); i++) {
+			if (jugador.getPokemones().get(i).estaVivo()) {
+				return jugador.getPokemones().get(i);
+			}
+		}
+
+		return null;
+	}
+
+	// permite elegir un pokemon vivo del equipo
+	private static Pokemon elegirPokemonVivoEquipo() {
+		while (true) {
+			System.out.println("Pokemones disponibles:");
+
+			for (int i = 0; i < jugador.getCantidadEquipo(); i++) {
+				Pokemon pokemon = jugador.getPokemones().get(i);
+				System.out.println((i + 1) + ") " + pokemon.getNombre() + " - " + pokemon.getEstado());
+			}
+
+			int opcion = leerEnteroEnRango("Seleccione un pokemon: ", 1, jugador.getCantidadEquipo());
+			Pokemon elegido = jugador.getPokemones().get(opcion - 1);
+
+			if (!elegido.estaVivo()) {
+				System.out.println("Ese pokemon esta debilitado.");
+			} else {
+				return elegido;
+			}
+		}
+	}
+
+	// reinicia el estado de una lista rival de pokemones
+	private static void reiniciarPokemonesRivales(ArrayList<Pokemon> pokemonesRival) {
+		for (int i = 0; i < pokemonesRival.size(); i++) {
+			pokemonesRival.get(i).setEstado("Vivo");
+		}
 	}
 
 	// lee texto no vacio
