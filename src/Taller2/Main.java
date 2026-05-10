@@ -300,7 +300,7 @@ public class Main {
 	// crea una nueva partida
 	private static void nuevaPartida() {
 		String apodo = leerTextoNoVacio("Ingrese su apodo de jugador: ");
-		jugador = new Jugador(apodo, "0");
+		jugador = new Jugador(apodo, "none");
 		actualizarEstadoGimnasios();
 		guardarPartida();
 	}
@@ -456,7 +456,7 @@ public class Main {
 
 		if (combatirEntrenador(gimnasio.getLider(), gimnasio.getPokemones())) {
 			gimnasio.setEstado("Derrotado");
-			jugador.setProgreso(String.valueOf(medallas + 1));
+			jugador.setProgreso(gimnasio.getLider());
 			actualizarEstadoGimnasios();
 			System.out.println("Has conseguido una nueva medalla!");
 		}
@@ -559,10 +559,8 @@ public class Main {
 		System.out.println(pokemonRival.getNombre() + " -> " + puntajeRival + " puntos");
 
 		double efectividadJugador = TablaTipos.getEfectividad(pokemonJugador.getTipo(), pokemonRival.getTipo());
-		double efectividadRival = TablaTipos.getEfectividad(pokemonRival.getTipo(), pokemonJugador.getTipo());
-
 		int nuevoPuntajeJugador = (int) Math.round(puntajeJugador * efectividadJugador);
-		int nuevoPuntajeRival = (int) Math.round(puntajeRival * efectividadRival);
+		int nuevoPuntajeRival = puntajeRival;
 
 		if (efectividadJugador > 1.0) {
 			System.out.println(pokemonJugador.getNombre() + " es efectivo contra " + pokemonRival.getNombre() + "!");
@@ -570,13 +568,7 @@ public class Main {
 			System.out.println(pokemonJugador.getNombre() + " no es efectivo contra " + pokemonRival.getNombre() + "!");
 		}
 
-		if (efectividadRival > 1.0) {
-			System.out.println(pokemonRival.getNombre() + " es efectivo contra " + pokemonJugador.getNombre() + "!");
-		} else if (efectividadRival < 1.0) {
-			System.out.println(pokemonRival.getNombre() + " no es efectivo contra " + pokemonJugador.getNombre() + "!");
-		}
-
-		if (efectividadJugador != 1.0 || efectividadRival != 1.0) {
+		if (efectividadJugador != 1.0) {
 			System.out.println("Nuevo puntaje:");
 			System.out.println(pokemonJugador.getNombre() + " -> " + nuevoPuntajeJugador + " puntos");
 			System.out.println(pokemonRival.getNombre() + " -> " + nuevoPuntajeRival + " puntos");
@@ -684,8 +676,14 @@ public class Main {
 		try {
 			return Integer.parseInt(progreso);
 		} catch (NumberFormatException e) {
-			return 0;
+			for (int i = 0; i < gimnasios.size(); i++) {
+				if (gimnasios.get(i).getLider().equalsIgnoreCase(progreso)) {
+					return i + 1;
+				}
+			}
 		}
+
+		return 0;
 	}
 
 	// actualiza el estado de los gimnasios segun las medallas
